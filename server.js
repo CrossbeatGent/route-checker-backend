@@ -6,10 +6,13 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 
+// De proxy-functie die we gaan gebruiken
+const buildProxyUrl = (targetUrl) => `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+
 const DATA_SOURCES = [
     { 
         name: 'GIPOD (Vlaanderen)', 
-        url: 'https://api.gipod.vlaanderen.be/v1/innames',
+        url: buildProxyUrl('https://api.gipod.vlaanderen.be/v1/innames'),
         parser: (item) => ({ 
             id: item.gipodId, 
             omschrijving: item.omschrijving, 
@@ -22,7 +25,7 @@ const DATA_SOURCES = [
     },
     {
         name: 'BRUGIS (Brussel)',
-        url: 'https://datastore.brussels/web/files/shortterm/road/RoadEvents.json',
+        url: buildProxyUrl('https://datastore.brussels/web/files/shortterm/road/RoadEvents.json'),
         parser: (item) => ({
             id: item.id,
             omschrijving: item.longDescription?.nl || item.shortDescription?.nl || 'Geen details',
@@ -36,13 +39,13 @@ const DATA_SOURCES = [
 ];
 
 app.get('/api/interruptions', async (req, res) => {
-    console.log('Verzoek ontvangen om data op te halen...');
+    console.log('Verzoek ontvangen om data op te halen via de backend...');
 
     const promises = DATA_SOURCES.map(source =>
-        fetch(source.url)
+        fetch(source.url) // We roepen nu de proxy URL aan
             .then(response => {
                 if (!response.ok) {
-                    throw new Error(`Fout bij ophalen van ${source.name}: ${response.statusText}`);
+                    throw new Error(`Fout bij ophalen van ${source.name} via proxy: ${response.statusText}`);
                 }
                 return response.json();
             })
@@ -60,7 +63,7 @@ app.get('/api/interruptions', async (req, res) => {
     try {
         const results = await Promise.all(promises);
         const combinedData = results.flat();
-
+        
         const uniqueInterruptions = new Map();
         combinedData.forEach(item => {
             if (item.coords && item.coords.length === 2) {
