@@ -6,8 +6,8 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 
-// De proxy-functie die we gaan gebruiken
-const buildProxyUrl = (targetUrl) => `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+// De proxy-functie die we gaan gebruiken. Deze is vaak betrouwbaarder.
+const buildProxyUrl = (targetUrl) => `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
 
 const DATA_SOURCES = [
     { 
@@ -39,19 +39,30 @@ const DATA_SOURCES = [
 ];
 
 app.get('/api/interruptions', async (req, res) => {
-    console.log('Verzoek ontvangen om data op te halen via de backend...');
+    console.log('Verzoek ontvangen om data op te halen via de backend (v3)...');
+
+    const fetchWithHeaders = (url) => {
+        return fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+        });
+    };
 
     const promises = DATA_SOURCES.map(source =>
-        fetch(source.url) // We roepen nu de proxy URL aan
+        fetchWithHeaders(source.url)
             .then(response => {
                 if (!response.ok) {
-                    throw new Error(`Fout bij ophalen van ${source.name} via proxy: ${response.statusText}`);
+                    throw new Error(`Fout bij ophalen van ${source.name} via proxy: ${response.status} ${response.statusText}`);
                 }
                 return response.json();
             })
             .then(data => {
                 const features = data.features || data;
-                if (!Array.isArray(features)) return [];
+                if (!Array.isArray(features)) {
+                    console.error(`Onverwachte data structuur van ${source.name}:`, data);
+                    return [];
+                };
                 return features.map(source.parser);
             })
             .catch(error => {
